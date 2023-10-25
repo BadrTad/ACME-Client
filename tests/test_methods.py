@@ -6,22 +6,30 @@ from method.directory.fetch_directory import fetch_directory
 from method.nonce import get_nonce
 from method.account.create_account import create_account
 from method.order.create_order import create_order
+from method.order.fetch_authorization import fetch_challenges_for_authorization
 
+from acme_types import URL, Nonce
 from acme_debug import URL_ACME_DIR, URL_ACCOUNT_RESOURCE, URL_NEW_ORDER_RESOURSE, URL_NONCE_RESOURCE, get_debug_jws_factory
 from validation import *
+
 
 @pytest.fixture(autouse=True)
 def jws_factory() -> JWSFactory:
     return get_debug_jws_factory(new=False)
 
+
 @pytest.fixture()
-def nonce() -> str:
+def nonce() -> Nonce:
     nonce = get_nonce(URL_NONCE_RESOURCE)
     if not is_valid_nonce(nonce):
         raise Exception("Error getting valid nonce")
     return nonce
-    
-    
+
+@pytest.fixture()
+def identifiers() -> list[Identifier]:
+    return [Identifier({"type": "dns", "value": "example.com"}), Identifier({"type": "dns", "value": "www.example.com"})]
+
+
 def test_directory():
     try:
         j = fetch_directory(URL_ACME_DIR)
@@ -29,6 +37,7 @@ def test_directory():
     except Exception as e:
         print(e)
         assert False
+
 
 def test_nonce():
     try:
@@ -40,7 +49,7 @@ def test_nonce():
         assert False
 
 
-def test_account_creation(nonce: str, jws_factory: JWSFactory):
+def test_account_creation(nonce: Nonce, jws_factory: JWSFactory):
     try:
         account, new_nonce = create_account(URL_ACCOUNT_RESOURCE, nonce, jws_factory)
         account.status == "valid"
@@ -54,13 +63,12 @@ def test_account_creation(nonce: str, jws_factory: JWSFactory):
         print(e)
         assert False
 
-def test_order_creation(nonce: str, jws_factory: JWSFactory):
-    #First we create an order 
+
+def test_order_creation(identifiers: list[Identifier], nonce: Nonce, jws_factory: JWSFactory):
+    # First we create an order
     account, nonce = create_account(URL_ACCOUNT_RESOURCE, nonce, jws_factory)
 
-    # Select the identifiers we want to order for
-    identifiers = [{"type": "dns", "value": "example.com"}, {"type": "dns", "value": "www.example.com"}]
-
+    
     try:
         orders, new_nonce = create_order(URL_NEW_ORDER_RESOURSE, account.kid, nonce, identifiers, jws_factory)
         assert orders.status == "pending"
@@ -71,11 +79,30 @@ def test_order_creation(nonce: str, jws_factory: JWSFactory):
         assert is_valid_order_url(orders.order_url)
         assert orders.orders is None
         assert is_valid_nonce(new_nonce)
-        
+
     except Exception as e:
         print(e)
         assert False
-    
-    
 
+
+def test_challenges_for_authorization(identifiers: list[Identifier], nonce: Nonce, jws_factory: JWSFactory):
     
+    account, nonce = create_account(URL_ACCOUNT_RESOURCE, nonce, jws_factory)
+
+    orders, nonce = create_order(URL_NEW_ORDER_RESOURSE, account.kid, nonce, identifiers, jws_factory)
+
+    def assert_authorization(auth_url: URL, nonce) -> bool:
+        authorization, new_nonce = fetch_challenges_for_authorization(account.kid, auth_url, nonce, jws_factory)
+        assert authorization.status == "pending"
+        assert authorization.identifier in orders.identifiers
+        assert authorization.challenges is not None and len(authorization.challenges) > 0
+        assert are_valid_challenges(authorization.challenges)
+        assert is_valid_expires(authorization.expires)
+        assert is_valid_nonce(nonce)
+        assert authorization.wildcard is None
+        return new_nonce
+        
+    
+    for auth_url in orders.authorizations:
+        nonce = assert_authorization(auth_url, nonce)
+

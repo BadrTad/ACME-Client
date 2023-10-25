@@ -1,13 +1,14 @@
 import re
 from datetime import datetime
 
-from method.acme_objects import Identifier
+from method.acme_objects import Challenge, Identifier
+from acme_types import URL, Nonce
 
 def is_json_error(j: dict) -> bool:
     return 'status' in j and j['status'] is int and j['status'] >= 400
 
 
-def is_valid_nonce(nonce: str) -> bool:
+def is_valid_nonce(nonce: Nonce) -> bool:
     # Check if the string contains only valid Base64 URL characters.
     return bool(nonce) and bool(re.match(r'^[A-Za-z0-9_-]*$', nonce))
 
@@ -23,7 +24,7 @@ def are_valid_identifiers(requested_identifiers:list[Identifier],
     pairs = zip(rqs_s, rcv_s)
     return all( rqs == rcs for rqs ,rcs in pairs)
     
-def is_valid_finalize(finalize: str) -> bool:
+def is_valid_finalize(finalize: URL) -> bool:
     reg_finalize_pattern = r'^https:\/\/(\d+\.\d+\.\d+\.\d+):(\d+)\/finalize-order\/([0-9a-zA-Z_-]+)$'
     return bool(finalize) and bool(re.match(reg_finalize_pattern, finalize))
 
@@ -43,10 +44,30 @@ def is_valid_expires(expires: str) -> bool:
     except ValueError:
         return False
     
-def is_valid_order_url(order_url: str) -> bool:
+def is_valid_order_url(order_url: URL) -> bool:
     reg_order_url_pattern = r'^https:\/\/(\d+\.\d+\.\d+\.\d+):(\d+)\/my-order\/([0-9a-zA-Z_-]+)$'
     return bool(order_url) and bool(re.match(reg_order_url_pattern, order_url))
 
+
+def are_valid_challenges(challenges: list[Challenge]) -> bool:
+  
+    def is_valid_challenge_url(url: URL) -> bool:
+        reg_challenge_url_pattern = r'^https:\/\/(\d+\.\d+\.\d+\.\d+):(\d+)\/chalZ\/([0-9a-zA-Z_-]+)$'
+        return bool(url) and bool(re.match(reg_challenge_url_pattern, url))
+
+    def is_valid_challenge_token(token: str) -> bool:
+        return bool(token) and bool(re.match(r'^[A-Za-z0-9_-]*$', token))
+
+    def is_valid_challenge_type(challenge_type: str) -> bool:
+        return challenge_type in ["http-01", "dns-01", "tls-alpn-01"]
+
+    def is_valid_challenge(challenge: Challenge) -> bool:
+        return is_valid_challenge_type(challenge.type) \
+            and is_valid_challenge_url(challenge.url) \
+            and is_valid_challenge_token(challenge.token)
+
+    return bool(challenges) and all(map(is_valid_challenge, challenges))
+    
 
 if __name__ == "__main__":
     # test are_valid_identifiers

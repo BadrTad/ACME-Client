@@ -1,10 +1,12 @@
-import json, url64, copy
+import json
+import url64
+import copy
+import re
 from util.crypto import SigningKey, VerifyingKey
-from acme_types import Json , Signature, Tuple
+from acme_types import Json, Signature, Tuple
 
 from jws.jwk import JWKey
 from jws.jws_header import JWSHeader, JWSHeaderEncoder
-
 
 
 class JWSFactory():
@@ -16,13 +18,21 @@ class JWSFactory():
         self._signing_key = signing_key
         self.verifying_key = verifying_key
 
+    def __check_payload(self, jws_payload: Json) -> bool:
+        try:
+            _ = json.dumps(jws_payload)
+            return True
+        except TypeError:
+            return False
+
     def _signature_for(self, jws_header: Json, jws_payload: Json) -> Signature:
         """Computes the signature for a JWS object."""
 
         jws_header = url64.encode(jws_header)
-        jws_payload = url64.encode(jws_payload)
-        s_bytes = self._signing_key.sign(
-            (jws_header + "." + jws_payload).encode("utf-8"))
+        jws_payload = url64.encode(jws_payload) 
+
+        to_sign = jws_header + "." + jws_payload  
+        s_bytes = self._signing_key.sign(to_sign.encode("utf-8"))
 
         return s_bytes
 
@@ -32,48 +42,50 @@ class JWSFactory():
         y = self.verifying_key.pubkey.point.y()
         return x, y
 
-    def build_JWS_with_jwk(self,jws_header_params: Json, jws_payload: Json) -> Json:
-        """Builds a JWS object."""
-        x, y = self._get_public_key_point()
-        jwk = JWKey(x, y)
-        
-        jws_header = JWSHeader.with_jwk(**jws_header_params, jwk=jwk)
-        jws = self.parse_with_signature_JWS(jws_header, jws_payload)
-        
-        return jws.as_json()
-
-    def build_JWS_with_kid(self, jws_header_params: Json, jws_payload: Json) -> Json:
-        """Builds a JWS object."""
-        jws_header = JWSHeader.with_kid(**jws_header_params)
-        jws = self.parse_with_signature_JWS(jws_header, jws_payload)
-        return jws.as_json()
-
-    def parse_with_signature_JWS(self, jws_header: JWSHeader, jws_payload: Json) -> 'JWS':
+    def _parse_with_signature_JWS(self, jws_header: JWSHeader, jws_payload: Json) -> 'JWS':
         """Creates a JWS object."""
-        jws_header_json  = json.dumps(jws_header, cls=JWSHeaderEncoder)
-        jws_payload_json = json.dumps(jws_payload)  
+        jws_header_json = json.dumps(jws_header, cls=JWSHeaderEncoder)
+        jws_payload_json = json.dumps(jws_payload) if jws_payload else ""
         signature = self._signature_for(jws_header_json, jws_payload_json)
 
         return JWS(jws_payload, jws_header, signature)
 
+    def build_JWS_with_jwk(self, jws_header_params: Json, jws_payload: Json) -> Json:
+        """Builds a JWS object."""
+        assert self.__check_payload(jws_payload)
+
+        x, y = self._get_public_key_point()
+        jwk = JWKey(x, y)
+
+        jws_header = JWSHeader.with_jwk(**jws_header_params, jwk=jwk)
+        jws = self._parse_with_signature_JWS(jws_header, jws_payload)
+
+        return jws.as_json()
+
+    def build_JWS_with_kid(self, jws_header_params: Json, jws_payload: Json) -> Json:
+        """Builds a JWS object."""
+        assert "kid" in jws_header_params
+        assert self.__check_payload(jws_payload)
+        jws_header = JWSHeader.with_kid(**jws_header_params)
+        jws = self._parse_with_signature_JWS(jws_header, jws_payload)
+        return jws.as_json()
+
+
 class JWS():
     payload: Json
-    protected: JWSHeader  
+    protected: JWSHeader
     signature: Signature
 
     def __init__(self, jws_payload, jws_header, signature):
         self.payload = jws_payload
         self.protected = jws_header
         self.signature = signature
-    
 
     def as_json(self) -> Json:
         """Converts the JWS to a base64url encoded string."""
         j = json.dumps(self, cls=JWSEncoder)
         j = json.loads(j)
         return j
-
-
 
 
 class JWSEncoder(json.JSONEncoder):
@@ -84,8 +96,7 @@ class JWSEncoder(json.JSONEncoder):
             d = copy.copy(obj.__dict__)
             d['protected'] = url64.encode(JWSHeaderEncoder.default(self, obj.protected))
             d['signature'] = url64.encode(obj.signature)
-            d['payload'] = url64.encode(obj.payload)
+            d['payload'] = url64.encode(obj.payload) if obj.payload else ""
             return d
-        else :
+        else:
             return json.JSONEncoder.default(self, obj)
-

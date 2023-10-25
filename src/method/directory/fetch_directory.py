@@ -2,9 +2,6 @@
 import httpx
 import ssl
 
-from pprint import pprint
-
-
 from acme_types import Json
 from acme_debug import PROXIES, URL_ACME_DIR
 

@@ -1,5 +1,4 @@
 import httpx
-from pprint import pprint
 import acme_debug
 
 from method.acme_objects import Account
@@ -27,12 +26,11 @@ def create_account(newAccountEndpoint: URL, nonce: Nonce, factory: JWSFactory) -
     }
 
     jws = format_jws(payload, newAccountEndpoint, nonce, factory)
-    account, new_nonce, kid = send_post_request_for_account(newAccountEndpoint, jws)
-    account.set_kid(kid)
+    account, new_nonce = send_post_request_for_account(newAccountEndpoint, jws)
     return account, new_nonce
 
 
-def send_post_request_for_account(url: URL, jws: Json) -> Tuple[Account, Nonce, str]:
+def send_post_request_for_account(url: URL, jws: Json) -> Tuple[Account, Nonce]:
     """Formats a POST request to the ACME server
 
     Returns:
@@ -48,9 +46,11 @@ def send_post_request_for_account(url: URL, jws: Json) -> Tuple[Account, Nonce, 
     response = httpx.post(url, headers=headers, json=jws, verify=False, proxies=acme_debug.PROXIES)
     if response.is_error:
         raise Exception("Error creating account", response.json())
-
-        
-    return Account(response.json()), response.headers['Replay-Nonce'], response.headers['Location']
+    
+    kid = response.headers['Location']
+    account = Account(response.json(), kid)
+    new_nonce = response.headers['Replay-Nonce']
+    return account, new_nonce
     
 
 

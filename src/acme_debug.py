@@ -11,7 +11,7 @@ PROXIES = {
     "https://": "http://172.30.208.1:8080",
 }
 
-from util.jws import JWSFactory
+from jws.jws import JWSFactory
 from util.crypto import generate_keypair, load_keypair, save_keypair
 
 def new_keypair(save_to_file= True) :

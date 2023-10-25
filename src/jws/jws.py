@@ -1,64 +1,9 @@
 import json, url64, copy
 from util.crypto import SigningKey, VerifyingKey
-from acme_types import Json, Nonce, Optional, Signature, Tuple
+from acme_types import Json , Signature, Tuple
 
-
-
-class JWKey():
-    """JWK implementation."""
-
-    def __init__(self, x: int, y: int) -> None:
-        self.kty: str = "EC"
-        self.crv: str = "P-256"
-        self.use: str = "sig"
-        self.x: bytes = int(x).to_bytes(32, byteorder='big')
-        self.y: bytes = int(y).to_bytes(32, byteorder='big')
-
-
-class JWSHeader():
-    """Flattened JWS header implementation."""
-    alg: str
-    url: str
-    nonce: Nonce
-    jwk: Optional[JWKey]
-    kid: Optional[str]
-    crv: Optional[str]
-
-    def __init__(self, alg: str, url: str, nonce: Nonce) -> None:
-        self.alg = alg
-        self.url = url
-        self.nonce = nonce
-
-    def with_kid(url: str, nonce: Nonce, kid: str, alg="ES256") -> 'JWSHeader':
-        """Sets the kid field of the JWSHeader."""
-        self = JWSHeader(alg, url, nonce)
-        self.kid = kid
-        return self
-
-    def with_jwk(url: str, nonce: Nonce,  jwk: JWKey, alg: str = "ES256") -> 'JWSHeader':
-        """Sets the jwk field of the JWSHeader."""
-        self = JWSHeader(alg, url, nonce)
-        self.jwk = jwk
-        return self
-
-
-
-class JWS():
-    payload: Json
-    protected: JWSHeader  
-    signature: Signature
-
-    def __init__(self, jws_payload, jws_header, signature):
-        self.payload = jws_payload
-        self.protected = jws_header
-        self.signature = signature
-    
-
-    def as_json(self) -> Json:
-        """Converts the JWS to a base64url encoded string."""
-        j = json.dumps(self, cls=JWSEncoder)
-        j = json.loads(j)
-        return j
+from jws.jwk import JWKey
+from jws.jws_header import JWSHeader, JWSHeaderEncoder
 
 
 
@@ -111,33 +56,24 @@ class JWSFactory():
 
         return JWS(jws_payload, jws_header, signature)
 
-class JWKeyEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, JWKey):
-            d = copy.copy(obj.__dict__)
-            d['x'] = url64.encode(obj.x)
-            d['y'] = url64.encode(obj.y)
+class JWS():
+    payload: Json
+    protected: JWSHeader  
+    signature: Signature
 
-            return d
-        return json.JSONEncoder.default(self, obj) 
+    def __init__(self, jws_payload, jws_header, signature):
+        self.payload = jws_payload
+        self.protected = jws_header
+        self.signature = signature
+    
 
-class JWSHeaderEncoder(json.JSONEncoder):
-    """JSON encoder for JWSHeader objects."""
-
-    def default(self, obj):
-        if isinstance(obj, JWSHeader):
-            # obj.nonce = url64.encode(obj.nonce)
-            d = copy.copy(obj.__dict__)
-            if 'jwk' in obj.__dict__:
-                jwk = JWKeyEncoder.default(self,obj.jwk)
-                d['jwk'] = jwk
-                return d
-
-            assert 'kid' in obj.__dict__
-            return d    
+    def as_json(self) -> Json:
+        """Converts the JWS to a base64url encoded string."""
+        j = json.dumps(self, cls=JWSEncoder)
+        j = json.loads(j)
+        return j
 
 
-        return json.JSONEncoder.default(self, obj)
 
 
 class JWSEncoder(json.JSONEncoder):

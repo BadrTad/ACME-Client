@@ -4,3 +4,4 @@ debug/
 __pycache__/
 pebble_keys/
 wiki/*
+pytest.ini

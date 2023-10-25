@@ -1,6 +1,8 @@
 import re
 from datetime import datetime
 
+from method.acme_objects import Identifier
+
 def is_json_error(j: dict) -> bool:
     return 'status' in j and j['status'] is int and j['status'] >= 400
 
@@ -13,11 +15,11 @@ def is_valid_kid(kid: str) -> bool:
     reg_kid_pattern = r'^https:\/\/(\d+\.\d+\.\d+\.\d+):(\d+)\/my-account\/([0-9a-fA-F]+)$'
     return bool(kid) and bool(re.match(reg_kid_pattern, kid))
 
-def are_valid_identifiers(requested_identifiers:list[dict[str,str]],
-                          received_identifiers: list[dict[str,str]]):
+def are_valid_identifiers(requested_identifiers:list[Identifier],
+                          received_identifiers: list[Identifier]):
 
-    rqs_s = sorted(received_identifiers, key=lambda i: i['value'])
-    rcv_s = sorted(requested_identifiers, key=lambda i: i['value'])
+    rqs_s = sorted(received_identifiers, key=lambda i: i.value)
+    rcv_s = sorted(requested_identifiers, key=lambda i: i.value)
     pairs = zip(rqs_s, rcv_s)
     return all( rqs == rcs for rqs ,rcs in pairs)
     

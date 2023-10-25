@@ -1,16 +1,18 @@
+import pytest
 
-from acme_debug import URL_ACME_DIR, URL_ACCOUNT_RESOURCE, URL_NONCE_RESOURCE, get_debug_jws_factory
 from jws.jws import JWSFactory
-from method.account.create_account import create_account
+
 from method.directory.fetch_directory import fetch_directory
 from method.nonce import get_nonce
+from method.account.create_account import create_account
+from method.order.create_order import create_order
 
-import re
-import pytest
+from acme_debug import URL_ACME_DIR, URL_ACCOUNT_RESOURCE, URL_NEW_ORDER_RESOURSE, URL_NONCE_RESOURCE, get_debug_jws_factory
+from validation import *
 
 @pytest.fixture(autouse=True)
 def jws_factory() -> JWSFactory:
-    return get_debug_jws_factory()
+    return get_debug_jws_factory(new=False)
 
 @pytest.fixture()
 def nonce() -> str:
@@ -19,15 +21,7 @@ def nonce() -> str:
         raise Exception("Error getting valid nonce")
     return nonce
     
-
-def is_json_error(j: dict):
-    return 'status' in j and j['status'] is int and j['status'] >= 400
-
-
-def is_valid_nonce(s: str):
-    # Check if the string contains only valid Base64 URL characters.
-    return s and re.match(r'^[A-Za-z0-9_-]*$', s)
-
+    
 def test_directory():
     try:
         j = fetch_directory(URL_ACME_DIR)
@@ -50,8 +44,7 @@ def test_account_creation(nonce: str, jws_factory: JWSFactory):
     try:
         account, new_nonce = create_account(URL_ACCOUNT_RESOURCE, nonce, jws_factory)
         account.status == "valid"
-        account.get_kid() is str
-        assert len(account.kid) > 0
+        assert is_valid_kid(account.kid)
         account.contact is list
         len(account.contact) > 0
 
@@ -60,5 +53,29 @@ def test_account_creation(nonce: str, jws_factory: JWSFactory):
     except Exception as e:
         print(e)
         assert False
+
+def test_order_creation(nonce: str, jws_factory: JWSFactory):
+    #First we create an order 
+    account, nonce = create_account(URL_ACCOUNT_RESOURCE, nonce, jws_factory)
+
+    # Select the identifiers we want to order for
+    identifiers = [{"type": "dns", "value": "example.com"}, {"type": "dns", "value": "www.example.com"}]
+
+    try:
+        orders, new_nonce = create_order(URL_NEW_ORDER_RESOURSE, account.kid, nonce, identifiers, jws_factory)
+        assert orders.status == "pending"
+        assert are_valid_identifiers(identifiers, orders.identifiers)
+        assert is_valid_finalize(orders.finalize)
+        assert are_valid_authorizations(orders.authorizations)
+        assert is_valid_expires(orders.expires)
+        assert is_valid_order_url(orders.order_url)
+        assert orders.orders is None
+        assert is_valid_nonce(new_nonce)
+        
+    except Exception as e:
+        print(e)
+        assert False
+    
+    
 
     

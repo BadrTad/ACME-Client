@@ -4,7 +4,7 @@ import acme_debug
 
 from method.acme_objects import Account
 from acme_types import URL, Json, Nonce, Tuple
-from util.jws import JWSFactory
+from jws.jws import JWSFactory
 
 
 def create_account(newAccountEndpoint: URL, nonce: Nonce, factory: JWSFactory) -> Tuple[Account, Nonce]:
@@ -47,8 +47,7 @@ def send_post_request_for_account(url: URL, jws: Json) -> Tuple[Account, Nonce, 
     }
     response = httpx.post(url, headers=headers, json=jws, verify=False, proxies=acme_debug.PROXIES)
     if response.is_error:
-        pprint(response.json())
-        raise Exception("Error creating account")
+        raise Exception("Error creating account", response.json())
 
         
     return Account(response.json()), response.headers['Replay-Nonce'], response.headers['Location']
@@ -64,14 +63,3 @@ def format_jws(payload:Json, url, nonce, factory: JWSFactory) -> Json:
     jws_header_params = {"url": url, "nonce": nonce}
     return factory.build_JWS_with_jwk(jws_header_params, payload)
 
-
-
-
-if __name__ == '__main__':
-    from method.nonce import get_nonce
-    from acme_debug import URL_ACCOUNT_RESOURCE, URL_NONCE_RESOURCE
-
-    jws_factory = acme_debug.get_debug_jws_factory()
-
-    nonce = get_nonce(URL_NONCE_RESOURCE)
-    create_account(URL_ACCOUNT_RESOURCE, nonce, jws_factory)

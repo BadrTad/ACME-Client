@@ -71,6 +71,9 @@ class Challenge():
         self.type: str = json.get('type')
         self.url: URL = json.get('url')
         self.token: str = json.get('token')
+        self.status: str = json.get('status')
+        self.validated: Optional[str] = json.get('validated')
+        self.error: Optional[Json] = json.get('error')
 
     def is_http_01(self) -> bool:
         return self.type == 'http-01'
@@ -84,6 +87,9 @@ class Challenge():
             type: {self.type}
             url: {self.url}
             token: {self.token}
+            status: {self.status}
+            validated: {self.validated}
+            error: {self.error}
         """
 
 
@@ -107,4 +113,16 @@ class Authorization():
                 wildcard: {self.wildcard}
             """
 
+    def is_valid(self) -> bool:
+        return self.status == 'valid'
 
+    def is_still_pending(self) -> bool:
+        return self.status == 'pending'
+
+    def get_challenge_by_type(self, type: str) -> Optional[Challenge]:
+        for challenge in self.challenges:
+            if challenge.type == type:
+                return challenge
+        return None
+        
+    

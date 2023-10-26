@@ -6,7 +6,7 @@ from method.directory.fetch_directory import fetch_directory
 from method.nonce import get_nonce
 from method.account.create_account import create_account
 from method.order.create_order import create_order
-from method.order.fetch_authorization import fetch_challenges_for_authorization
+from method.order.fetch_authorization import fetch_challenges_for_authorization, respond_to_challenge
 
 from acme_types import URL, Nonce
 from acme_debug import URL_ACME_DIR, URL_ACCOUNT_RESOURCE, URL_NEW_ORDER_RESOURSE, URL_NONCE_RESOURCE, get_debug_jws_factory
@@ -106,3 +106,21 @@ def test_challenges_for_authorization(identifiers: list[Identifier], nonce: Nonc
     for auth_url in orders.authorizations:
         nonce = assert_authorization(auth_url, nonce)
 
+
+def test_challenges_responding(identifiers: list[Identifier], nonce: Nonce, jws_factory: JWSFactory):
+    account, nonce = create_account(URL_ACCOUNT_RESOURCE, nonce, jws_factory)
+    orders, nonce = create_order(URL_NEW_ORDER_RESOURSE, account.kid, nonce, identifiers, jws_factory)
+
+    auth_url = orders.authorizations[0]
+    authorization, nonce = fetch_challenges_for_authorization(account.kid, auth_url, nonce, jws_factory)
+    challenge = authorization.get_challenge_by_type("http-01")
+
+    assert challenge is not None
+    assert challenge.status == "pending"
+
+    updated_challenge, nonce = respond_to_challenge(challenge, account.kid, nonce, jws_factory)
+
+    assert updated_challenge.status == "processing"
+    assert updated_challenge.type == challenge.type
+    assert updated_challenge.url == challenge.url
+    assert updated_challenge.token == challenge.token

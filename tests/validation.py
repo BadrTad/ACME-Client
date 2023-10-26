@@ -1,12 +1,23 @@
 import re
 from datetime import datetime
+from typing import Callable
 
 from method.acme_objects import Challenge, Identifier
 from acme_types import URL, Nonce
 
+def is_valid_signature(signature: str, deocoder: Callable[[str], bytes], signature_size_bytes = 64) -> bool:
+    base64_url_pattern = r'^[A-Za-z0-9_-]*$'
+    is_base_64_url = bool(signature) and bool(re.match(base64_url_pattern, signature))
+    
+    try:
+        signature_bytes = deocoder(signature)
+    except ValueError:
+        return False
+    
+    return is_base_64_url and len(signature_bytes) == signature_size_bytes
+
 def is_json_error(j: dict) -> bool:
     return 'status' in j and j['status'] is int and j['status'] >= 400
-
 
 def is_valid_nonce(nonce: Nonce) -> bool:
     # Check if the string contains only valid Base64 URL characters.

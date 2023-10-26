@@ -10,12 +10,13 @@ from jws.jws_header import JWSHeader, JWSHeaderEncoder
 
 class JWSFactory():
     """Factory for creating JWS objects."""
-    _signing_key: SigningKey
-    verifying_key: VerifyingKey
 
     def __init__(self, signing_key: SigningKey, verifying_key: VerifyingKey):
-        self._signing_key = signing_key
-        self.verifying_key = verifying_key
+        self._signing_key: SigningKey = signing_key
+
+        # Craete jwk from verifying key
+        x,y = self._get_public_key_point(verifying_key)
+        self.jwk = JWKey(x=x,y=y)
 
     def __check_payload(self, jws_payload: Json|str) -> bool:
         
@@ -44,11 +45,16 @@ class JWSFactory():
 
         return s_bytes
 
-    def _get_public_key_point(self) -> Tuple[int, int]:
+    def _get_public_key_point(self, verifying_key, as_b64url = True) -> Tuple[str|int, int|str]:
         """Returns the public key as EC point."""
-        x = self.verifying_key.pubkey.point.x()
-        y = self.verifying_key.pubkey.point.y()
-        return x, y
+        x = verifying_key.pubkey.point.x()
+        y = verifying_key.pubkey.point.y()
+        if as_b64url:
+            x = url64.encode(int(x).to_bytes(32, byteorder="big"))
+            y = url64.encode(int(y).to_bytes(32, byteorder="big"))
+            return x, y
+        else:
+            return x, y
 
     def _parse_with_signature_JWS(self, jws_header: JWSHeader, jws_payload: str) -> 'JWS':
         """Creates a JWS object."""
@@ -61,11 +67,7 @@ class JWSFactory():
         """Builds a JWS object."""
         assert self.__check_payload(jws_payload)
 
-        x, y = self._get_public_key_point()
-        jwk = JWKey(x, y)
-
-        jws_header = JWSHeader.with_jwk(**jws_header_params, jwk=jwk)
-
+        jws_header = JWSHeader(**jws_header_params, jwk=self.jwk)
         payload = JWSFactory._parse_payload(jws_payload)
         jws = self._parse_with_signature_JWS(jws_header, payload)
 
@@ -75,7 +77,7 @@ class JWSFactory():
         """Builds a JWS object."""
         assert "kid" in jws_header_params
         assert self.__check_payload(jws_payload)
-        jws_header = JWSHeader.with_kid(**jws_header_params)
+        jws_header = JWSHeader(**jws_header_params)
         payload = JWSFactory._parse_payload(jws_payload)
         jws = self._parse_with_signature_JWS(jws_header, payload)
         return jws.as_json()
@@ -93,20 +95,8 @@ class JWS():
 
     def as_json(self) -> Json:
         """Converts the JWS to a base64url encoded string."""
-        j = json.dumps(self, cls=JWSEncoder)
-        j = json.loads(j)
-        return j
-
-
-class JWSEncoder(json.JSONEncoder):
-    """JSON encoder for JWSHeader and JWKey objects."""
-
-    def default(self, obj):
-        if isinstance(obj, JWS):
-            d = copy.copy(obj.__dict__)
-            d['protected'] = url64.encode(JWSHeaderEncoder.default(self, obj.protected))
-            d['signature'] = url64.encode(obj.signature)
-            d['payload'] = url64.encode(obj.payload) 
-            return d
-        else:
-            return json.JSONEncoder.default(self, obj)
+        d = copy.copy(self.__dict__)
+        d['protected'] = url64.encode(json.dumps(self.protected, cls=JWSHeaderEncoder))
+        d['signature'] = url64.encode(self.signature)
+        d['payload'] = url64.encode(self.payload) 
+        return d

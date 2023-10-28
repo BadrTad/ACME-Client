@@ -1,3 +1,4 @@
+from time import sleep
 import pytest
 
 from jws.jws import JWSFactory
@@ -45,11 +46,12 @@ def identifiers() -> list[Identifier]:
     ]
 
 
-@pytest.fixture()
+@pytest.fixture(scope="module")
 def acme_dns() -> ACME_DNS:
-    dns_server = ACME_DNS()
+    dns_server: ACME_DNS = ACME_DNS()
     dns_server.start()
     yield dns_server
+    print("This is the end")
     dns_server.stop()
 
 
@@ -139,6 +141,7 @@ def test_challenges_for_authorization(
         nonce = assert_authorization(auth_url, nonce)
 
 
+@pytest.mark.order1
 def test_dns_challenge_validation(
     acme_dns: ACME_DNS,
     identifiers: list[Identifier],
@@ -155,6 +158,7 @@ def test_dns_challenge_validation(
         account.kid, auth_url, nonce, jws_factory
     )
     challenge = authorization.get_challenge_by_type("dns-01")
+    domain = authorization.identifier.value
 
     assert challenge is not None
     assert challenge.status == "pending"
@@ -163,10 +167,47 @@ def test_dns_challenge_validation(
         authorization.identifier, challenge, jws_factory.jwk, acme_dns
     )
 
-    print("Key authorization:", key_authorization)
-
-    answers = dns_query(authorization.identifier.value)
+    answers = dns_query("_acme-challenge." + domain)
     assert answers is not None and len(answers) == 1 and answers[0] == key_authorization
+
+    acme_dns.remove_record(domain)
+
+
+@pytest.mark.run(after="test_dns_challenge_validation")
+def test_dns_challenge_validation_with_response(
+    acme_dns: ACME_DNS,
+    identifiers: list[Identifier],
+    nonce: Nonce,
+    jws_factory: JWSFactory,
+):
+    account, nonce = create_account(URL_ACCOUNT_RESOURCE, nonce, jws_factory)
+    orders, nonce = create_order(
+        URL_NEW_ORDER_RESOURSE, account.kid, nonce, identifiers, jws_factory
+    )
+
+    auth_url = orders.authorizations[0]
+    authorization, nonce = fetch_challenges_for_authorization(
+        account.kid, auth_url, nonce, jws_factory
+    )
+    challenge = authorization.get_challenge_by_type("dns-01")
+
+    key_authorization = solve_dns_challenge(
+        authorization.identifier, challenge, jws_factory.jwk, acme_dns
+    )
+
+    updated_challenge, nonce = respond_to_challenge(
+        challenge, account.kid, nonce, jws_factory
+    )
+
+    authorization_updated, nonce = fetch_challenges_for_authorization(
+        account.kid, auth_url, nonce, jws_factory
+    )
+
+    updated_challenge_2 = authorization_updated.get_challenge_by_type("dns-01")
+
+    assert updated_challenge_2.status == "valid"
+
+    acme_dns.remove_record(authorization.identifier.value)
 
 
 def test_challenges_responding(

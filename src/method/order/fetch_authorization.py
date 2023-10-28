@@ -1,5 +1,6 @@
 import httpx
-from tomlkit import key
+import hashlib
+import url64
 from jws.jwk import JWKey
 
 from jws.jws import JWSFactory
@@ -55,8 +56,10 @@ def fetch_challenges_for_authorization(
     return authorization, new_nonce
 
 
-def key_authorization_from(token: str, thumbprint: str) -> str:
-    return f"{token}.{thumbprint}"
+def hashed_key_authorization_from(token: str, thumbprint: str) -> str:
+    key_authorization = f"{token}.{thumbprint}"
+    hashed_key = hashlib.sha256(key_authorization.encode("utf-8")).digest()
+    return url64.encode(hashed_key)
 
 
 def solve_dns_challenge(
@@ -74,7 +77,7 @@ def solve_dns_challenge(
     token = challenge.token
     thumbprint = jwk.thumbprint()
 
-    key_authorization = key_authorization_from(token, thumbprint)
+    key_authorization = hashed_key_authorization_from(token, thumbprint)
     domain = identifier.value
 
     acme_dns.serve_record(domain, "TXT", key_authorization)

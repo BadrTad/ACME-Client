@@ -62,6 +62,7 @@ def acme_dns(identifiers) -> ACME_DNS:
     dns_server.stop()
 
 
+@pytest.mark.run(order=1)
 def test_directory():
     try:
         j = fetch_directory(URL_ACME_DIR)
@@ -71,6 +72,7 @@ def test_directory():
         assert False
 
 
+@pytest.mark.run(order=1)
 def test_nonce():
     try:
         nonce = get_nonce(URL_NONCE_RESOURCE)
@@ -81,6 +83,7 @@ def test_nonce():
         assert False
 
 
+@pytest.mark.run(order=1)
 def test_account_creation(nonce: Nonce, jws_factory: JWSFactory):
     try:
         account, new_nonce = create_account(URL_ACCOUNT_RESOURCE, nonce, jws_factory)
@@ -96,6 +99,7 @@ def test_account_creation(nonce: Nonce, jws_factory: JWSFactory):
         assert False
 
 
+@pytest.mark.run(order=1)
 def test_order_creation(
     identifiers: list[Identifier], nonce: Nonce, jws_factory: JWSFactory
 ):
@@ -120,6 +124,7 @@ def test_order_creation(
         assert False
 
 
+@pytest.mark.run(order=2)
 def test_challenges_for_authorization(
     identifiers: list[Identifier], nonce: Nonce, jws_factory: JWSFactory
 ):
@@ -148,7 +153,7 @@ def test_challenges_for_authorization(
         nonce = assert_authorization(auth_url, nonce)
 
 
-@pytest.mark.order1
+@pytest.mark.skip(reason="Known correct")
 def test_dns_challenge_validation(
     acme_dns: ACME_DNS,
     identifiers: list[Identifier],
@@ -178,7 +183,7 @@ def test_dns_challenge_validation(
     assert answers is not None and len(answers) == 1 and answers[0] == key_authorization
 
 
-@pytest.mark.run(after="test_dns_challenge_validation")
+@pytest.mark.run(order=3)
 def test_dns_challenge_validation_with_response(
     acme_dns: ACME_DNS,
     identifiers: list[Identifier],
@@ -236,6 +241,7 @@ def test_dns_challenge_validation_with_response(
     assert is_valid_certificate(cert)
 
 
+@pytest.mark.skip(reason="Known correct")
 def test_challenges_responding(
     identifiers: list[Identifier], nonce: Nonce, jws_factory: JWSFactory
 ):

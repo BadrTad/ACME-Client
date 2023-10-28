@@ -18,6 +18,7 @@ class Record:
 
 
 class ACME_DNS:
+    DNS_PREFIX_ACME_RECORD = "_acme-challenge."
     DNS_TABLE_TOML_PATH = f"debug/acme_dns.toml"
     PORT = 5053
 
@@ -68,66 +69,16 @@ class ACME_DNS:
         record_type: str,
         record_answer: str,
     ):
+        hostname = ACME_DNS.DNS_PREFIX_ACME_RECORD + hostname
         record_key = ACME_DNS._record_key(hostname, record_type)
         self.zones[record_key] = Record(
             host=hostname, type=record_type, answer=record_answer
         )
         self._reload()
 
-    def remove_record(self, hostname: str, record_type: str):
+    def remove_record(self, hostname: str, record_type: str = "TXT"):
+        hostname = ACME_DNS.DNS_PREFIX_ACME_RECORD + hostname
         record_key = ACME_DNS._record_key(hostname, record_type)
         if record_key in self.zones:
             del self.zones[record_key]
             self._reload()
-
-
-# import threading, signal
-
-# if __name__ == "__main__":
-#     acme_dns = ACME_DNS()
-#     # acme_dns.serve_record('new.example.com', 'A', '0.1.2.3')
-#     acme_dns.serve_record("new.example.com", "TXT", "updated new text")
-#     acme_dns.start()
-
-#     cli_running = True
-#     while cli_running:
-#         print("Enter command: add, remove, exit")
-#         command = input()
-#         match command:
-#             case "add":
-#                 print("Enter hostname, type, answer to be added")
-#                 hostname, record_type, record_answer = input().split()
-#                 acme_dns.serve_record(hostname, record_type, record_answer)
-
-#             case "remove":
-#                 print("Enter hostname, type to be removed")
-#                 hostname, record_type = input().split()
-#                 acme_dns.remove_record(hostname, record_type)
-
-#             case "reload":
-#                 acme_dns._reload()
-
-#             case "exit":
-#                 cli_running = False
-#                 acme_dns.stop()
-#                 break
-
-#     # Create an event to control when to wake up
-#     termination_event = threading.Event()
-
-#     def sigterm_handler(*args):
-#         print("Stop serving...")
-#         acme_dns.stop()
-#         termination_event.set()
-
-#     # Register the SIGTERM signal handler
-#     signal.signal(signal.SIGTERM, sigterm_handler)
-#     signal.signal(signal.SIGINT, sigterm_handler)
-#     signal.signal(signal.SIGQUIT, sigterm_handler)
-
-#     print("SERVING until SIGTERM|SIGINT is received...")
-
-#     # Wait until the termination event is set by the signal handler
-#     termination_event.wait()
-
-# COMMAND ---------- dig @localhost -p 5053 example.com A

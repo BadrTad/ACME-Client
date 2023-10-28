@@ -2,7 +2,6 @@ import json
 import copy
 import url64
 import hashlib
-from typing import Optional
 
 
 class JWKey:
@@ -19,7 +18,10 @@ class JWKey:
         """Returns the thumbprint of the JWK."""
 
         jwk_str: str = (
-            json.dumps(self.__dict__, sort_keys=True).replace(" ", "").replace("\n", "")
+            json.dumps(self.__dict__, sort_keys=True)
+            .replace(" ", "")
+            .replace("\n", "")
+            .replace("\x00", "")
         )
         jwk_hash = hashlib.sha256(jwk_str.encode("utf-8")).digest()
 
@@ -29,7 +31,6 @@ class JWKey:
         return f"""
         JWKey:
             crv: {self.crv}
-            use: {self.use}
             kty: {self.kty}
             x: {self.x}
             y: {self.y}

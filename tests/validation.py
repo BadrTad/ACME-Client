@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-from typing import Callable
+from typing import Callable, Optional
 
 from method.acme_objects import Challenge, Identifier
 from acme_types import URL, Nonce
@@ -79,6 +79,29 @@ def are_valid_challenges(challenges: list[Challenge]) -> bool:
 
     return bool(challenges) and all(map(is_valid_challenge, challenges))
     
+
+import dns.resolver
+def dns_query(domain_name, rtype = 'TXT') -> Optional[list[str]]:
+    # Define the DNS server address
+    dns_server = "127.0.0.1"
+    dns_port = 5053
+
+    # Query for a TXT record
+    try:
+        resolver = dns.resolver.Resolver(configure=False)
+        resolver.nameservers = [dns_server]
+        resolver.port = dns_port
+        resolver.timeout = 5.0
+
+        # Perform the DNS query for a TXT record
+        response = resolver.query(domain_name, rtype, lifetime=5.0, raise_on_no_answer=True)
+
+        return [answer.to_text()[1:-1] for answer in response] # strip quotes
+
+    except Exception as e:
+        print(e)
+        return None
+
 
 if __name__ == "__main__":
     # test are_valid_identifiers

@@ -14,14 +14,17 @@ PROXIES = {
 from jws.jws import JWSFactory
 from util.crypto import generate_keypair, load_keypair, save_keypair
 
-def new_keypair(save_to_file= True) :
-    sk, vk  = generate_keypair()
+
+def new_keypair(save_to_file=True):
+    sk, vk = generate_keypair()
     if save_to_file:
-       save_keypair('debug/', sk, vk)
+        save_keypair("debug/", sk, vk)
 
     return sk, vk
 
+
 JWS_FACTORY = None
+
 
 def get_debug_jws_factory(new=False) -> JWSFactory:
     """Returns a JWSFactory for debugging purposes."""
@@ -33,5 +36,3 @@ def get_debug_jws_factory(new=False) -> JWSFactory:
             sk, vk = load_keypair("debug/sk.pem", "debug/vk.pem")
         JWS_FACTORY = JWSFactory(sk, vk)
     return JWS_FACTORY
-
-

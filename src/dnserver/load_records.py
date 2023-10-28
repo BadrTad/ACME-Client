@@ -11,10 +11,23 @@ try:
 except ImportError:
     from typing_extensions import Literal
 
-__all__ = 'load_records', 'RecordType', 'Zone'
+__all__ = "load_records", "RecordType", "Zone"
 
 RecordType = Literal[
-    'A', 'AAAA', 'CAA', 'CNAME', 'DNSKEY', 'MX', 'NAPTR', 'NS', 'PTR', 'RRSIG', 'SOA', 'SRV', 'TXT', 'SPF'
+    "A",
+    "AAAA",
+    "CAA",
+    "CNAME",
+    "DNSKEY",
+    "MX",
+    "NAPTR",
+    "NS",
+    "PTR",
+    "RRSIG",
+    "SOA",
+    "SRV",
+    "TXT",
+    "SPF",
 ]
 RECORD_TYPES = RecordType.__args__  # type: ignore
 
@@ -28,23 +41,29 @@ class Zone:
 
     @classmethod
     def from_raw(cls, index: int, data: Any) -> Zone:
-        if not isinstance(data, dict) or data.keys() != {'host', 'type', 'answer'}:
+        if not isinstance(data, dict) or data.keys() != {"host", "type", "answer"}:
             raise ValueError(
                 f'Zone {index} is not a valid dict, must have keys "host", "type" and "answer", got {data!r}'
             )
 
-        host = data['host']
+        host = data["host"]
         if not isinstance(host, str):
-            raise ValueError(f'Zone {index} is invalid, "host" must be string, got {data!r}')
+            raise ValueError(
+                f'Zone {index} is invalid, "host" must be string, got {data!r}'
+            )
 
-        type_ = data['type']
+        type_ = data["type"]
         if type_ not in RECORD_TYPES:
-            raise ValueError(f'Zone {index} is invalid, "type" must be one of {", ".join(RECORD_TYPES)}, got {data!r}')
+            raise ValueError(
+                f'Zone {index} is invalid, "type" must be one of {", ".join(RECORD_TYPES)}, got {data!r}'
+            )
 
-        answer = data['answer']
+        answer = data["answer"]
         if isinstance(answer, str):
-            answer = re.sub(r'\s*\r?\n', '', answer)
-        elif not isinstance(answer, list) or not all(isinstance(x, (str, int)) for x in answer):
+            answer = re.sub(r"\s*\r?\n", "", answer)
+        elif not isinstance(answer, list) or not all(
+            isinstance(x, (str, int)) for x in answer
+        ):
             raise ValueError(
                 f'Zone {index} is invalid, "answer" must be a string or list of strings and ints, got {data!r}'
             )
@@ -60,12 +79,12 @@ class Records:
 def load_records(zones_file: str | Path) -> Records:
     data = parse_toml(zones_file)
     try:
-        zones = data['zones']
+        zones = data["zones"]
     except KeyError:
-        raise ValueError(f'No zones found in {zones_file}')
+        raise ValueError(f"No zones found in {zones_file}")
 
     if not isinstance(zones, list):
-        raise ValueError(f'Zones must be a list, not {type(zones).__name__}')
+        raise ValueError(f"Zones must be a list, not {type(zones).__name__}")
     return Records([Zone.from_raw(i, zone) for i, zone in enumerate(zones, start=1)])
 
 
@@ -75,5 +94,5 @@ def parse_toml(zones_file: str | Path) -> dict[str, Any]:
     else:
         import tomli as toml_
 
-    with open(zones_file, 'rb') as rf:
+    with open(zones_file, "rb") as rf:
         return toml_.load(rf)

@@ -6,7 +6,9 @@ from acme_types import URL, Json, Nonce, Tuple
 from jws.jws import JWSFactory
 
 
-def create_account(newAccountEndpoint: URL, nonce: Nonce, factory: JWSFactory) -> Tuple[Account, Nonce]:
+def create_account(
+    newAccountEndpoint: URL, nonce: Nonce, factory: JWSFactory
+) -> Tuple[Account, Nonce]:
     """Creates a new account by sending a POST request to the ACME server
 
     Args:
@@ -14,9 +16,9 @@ def create_account(newAccountEndpoint: URL, nonce: Nonce, factory: JWSFactory) -
         nonce (Nonce): Nonce from the ACME server
 
     Returns:
-        Account: created account object 
+        Account: created account object
         Nonce: new nonce
-    
+
     """
     payload = {
         "termsOfServiceAgreed": True,
@@ -41,20 +43,20 @@ def send_post_request_for_account(url: URL, jws: Json) -> Tuple[Account, Nonce]:
     headers = {
         "Content-Type": "application/jose+json",
         "Accept": "application/json",
-
     }
-    response = httpx.post(url, headers=headers, json=jws, verify=False, proxies=acme_debug.PROXIES)
+    response = httpx.post(
+        url, headers=headers, json=jws, verify=False, proxies=acme_debug.PROXIES
+    )
     if response.is_error:
         raise Exception("Error creating account", response.json())
-    
-    kid = response.headers['Location']
+
+    kid = response.headers["Location"]
     account = Account(response.json(), kid)
-    new_nonce = response.headers['Replay-Nonce']
+    new_nonce = response.headers["Replay-Nonce"]
     return account, new_nonce
-    
 
 
-def format_jws(payload:Json, url, nonce, factory: JWSFactory) -> Json:
+def format_jws(payload: Json, url, nonce, factory: JWSFactory) -> Json:
     """Formats a JWS for the POST request to the ACME server
 
     Returns:
@@ -62,4 +64,3 @@ def format_jws(payload:Json, url, nonce, factory: JWSFactory) -> Json:
     """
     jws_header_params = {"url": url, "nonce": nonce}
     return factory.build_JWS_with_jwk(jws_header_params, payload)
-

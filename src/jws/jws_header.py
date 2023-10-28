@@ -2,10 +2,18 @@ from jws.jwk import JWKey, JWKeyEncoder
 from acme_types import Nonce, Optional
 import copy, json
 
-class JWSHeader():
+
+class JWSHeader:
     """Flattened JWS header implementation."""
 
-    def __init__(self,url: str, nonce: Nonce, alg: str = "ES256", kid: str = None, jwk: JWKey = None) -> None:
+    def __init__(
+        self,
+        url: str,
+        nonce: Nonce,
+        alg: str = "ES256",
+        kid: str = None,
+        jwk: JWKey = None,
+    ) -> None:
         self.alg = alg
         self.url = url
         self.nonce = nonce
@@ -21,10 +29,10 @@ class JWSHeaderEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, JWSHeader):
             d = copy.copy(obj.__dict__)
-            if 'jwk' in obj.__dict__:
-                jwk = JWKeyEncoder.default(self,obj.jwk)
-                d['jwk'] = jwk
+            if "jwk" in obj.__dict__:
+                jwk = JWKeyEncoder.default(self, obj.jwk)
+                d["jwk"] = jwk
                 return d
 
-            assert 'kid' in obj.__dict__
-            return d    
+            assert "kid" in obj.__dict__
+            return d

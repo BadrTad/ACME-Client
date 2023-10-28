@@ -15,10 +15,13 @@ def test_account_object():
         "orders": "https://example.com/acme/orders/rzGoeA"
     }
     """
-    j = json.loads(data)    
-    account = Account(j, kid= "kid")
+    j = json.loads(data)
+    account = Account(j, kid="kid")
     assert account.status == "valid"
-    assert account.contact == [ "mailto:cert-admin@example.org","mailto:admin@example.org"]
+    assert account.contact == [
+        "mailto:cert-admin@example.org",
+        "mailto:admin@example.org",
+    ]
     assert account.termsOfServiceAgreed == True
     assert account.orders == "https://example.com/acme/orders/rzGoeA"
     assert account.kid == "kid"
@@ -54,10 +57,18 @@ def test_orders_object():
     assert orders.identifiers[0].value == "www.example.com"
     assert orders.identifiers[1].type == "dns"
     assert orders.identifiers[1].value == "example.com"
-    assert orders.finalize == "https://localhost:14000/finalize-order/uL2DgNiH9MGu7cQJYBMDKVKLwtFpV0TNh5tZqq16AJg"
-    assert orders.authorizations[0] == "https://localhost:14000/authZ/Ufi9M3Mc0NcDVtguAK_ZH6lLVr7Bet7-j-0B6LS5ozY"
-    assert orders.authorizations[1] == "https://localhost:14000/authZ/W_9V90Ezz9iiVM-KCPiaxnVQRbGnlefR33LW4tOpnYg"
-    
+    assert (
+        orders.finalize
+        == "https://localhost:14000/finalize-order/uL2DgNiH9MGu7cQJYBMDKVKLwtFpV0TNh5tZqq16AJg"
+    )
+    assert (
+        orders.authorizations[0]
+        == "https://localhost:14000/authZ/Ufi9M3Mc0NcDVtguAK_ZH6lLVr7Bet7-j-0B6LS5ozY"
+    )
+    assert (
+        orders.authorizations[1]
+        == "https://localhost:14000/authZ/W_9V90Ezz9iiVM-KCPiaxnVQRbGnlefR33LW4tOpnYg"
+    )
 
 
 def test_authorization_object():
@@ -98,4 +109,3 @@ def test_authorization_object():
     assert auth.challenges[1].url == "https://example.com/acme/chall/Rg5dV14Gh1Q"
     assert auth.challenges[1].token == "DGyRejmCefe7v4NfDGDKfA"
     assert auth.auth_url == "auth/url"
-    

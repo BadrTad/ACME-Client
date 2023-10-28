@@ -1,18 +1,17 @@
-import pprint
-from typing import Any
 import httpx
+from tomlkit import key
+from jws.jwk import JWKey
 
 from jws.jws import JWSFactory
-from method.acme_objects import Authorization, Challenge
-from acme_types import URL, Nonce, Tuple
+from method.acme_objects import Authorization, Challenge, Identifier
+from acme_types import URL, KeyAuthorizaton, Nonce, Tuple
+
+from acme_dns import ACME_DNS
 import acme_debug
 
 
 def fetch_challenges_for_authorization(
-    account_id: str,
-    authorization_url: URL,
-    nonce: Nonce,
-    jws_factory: JWSFactory
+    account_id: str, authorization_url: URL, nonce: Nonce, jws_factory: JWSFactory
 ) -> Tuple[Authorization, Nonce]:
     """Fetch Authorization object containing the challenges for the given authorization url.
 
@@ -30,8 +29,8 @@ def fetch_challenges_for_authorization(
     """
 
     jws = jws_factory.build_JWS_with_kid(
-        jws_header_params={"url": authorization_url, "nonce": nonce, 'kid': account_id},
-        jws_payload=''
+        jws_header_params={"url": authorization_url, "nonce": nonce, "kid": account_id},
+        jws_payload="",
     )
 
     headers = {
@@ -39,22 +38,56 @@ def fetch_challenges_for_authorization(
         "Accept": "application/json",
     }
 
-    response = httpx.post(authorization_url,
-                          headers=headers,
-                          json=jws,
-                          verify=False,
-                          proxies=acme_debug.PROXIES)
+    response = httpx.post(
+        authorization_url,
+        headers=headers,
+        json=jws,
+        verify=False,
+        proxies=acme_debug.PROXIES,
+    )
 
     if response.is_error:
         raise Exception("Error fetching challenge for authorization", response.json)
 
     authorization = Authorization(response.json(), authorization_url)
-    new_nonce = response.headers['Replay-Nonce']
+    new_nonce = response.headers["Replay-Nonce"]
 
     return authorization, new_nonce
 
 
-def respond_to_challenge(challenge: Challenge, account_id: URL, nonce: Nonce, jws_factory: JWSFactory) -> Tuple[bool, Nonce]:
+def key_authorization_from(token: str, thumbprint: str) -> str:
+    return f"{token}.{thumbprint}"
+
+
+def solve_dns_challenge(
+    identifier: Identifier, challenge: Challenge, jwk: JWKey, acme_dns: ACME_DNS
+) -> KeyAuthorizaton:
+    """Solves the dns challenge by adding a TXT record of the key authorization to the ACME DNS server.
+
+    Args:
+        identifier (Identifier): the domain identifier
+        challenge (Challenge): the challenge object of type dns-01
+        jwk (JWKey): account key
+        acme_dns (ACME_DNS): ACME DNS server to be used
+    """
+
+    token = challenge.token
+    thumbprint = jwk.thumbprint()
+
+    key_authorization = key_authorization_from(token, thumbprint)
+    domain = identifier.value
+
+    acme_dns.serve_record(domain, "TXT", key_authorization)
+    print(
+        f"Added record for {domain} with key authorization {key_authorization} to ACME DNS server"
+    )
+
+    return key_authorization
+
+
+def respond_to_challenge(
+    challenge: Challenge, account_id: URL, nonce: Nonce, jws_factory: JWSFactory
+) -> Tuple[bool, Nonce]:
     """Respond to the challenge.
 
     Args:
@@ -70,7 +103,7 @@ def respond_to_challenge(challenge: Challenge, account_id: URL, nonce: Nonce, jw
     """
 
     jws = jws_factory.build_JWS_with_kid(
-        jws_header_params={"url": challenge.url, "nonce": nonce, 'kid': account_id},
+        jws_header_params={"url": challenge.url, "nonce": nonce, "kid": account_id},
         jws_payload={},
     )
 
@@ -79,16 +112,18 @@ def respond_to_challenge(challenge: Challenge, account_id: URL, nonce: Nonce, jw
         "Accept": "application/json",
     }
 
-    response = httpx.post(challenge.url,
-                          headers=headers,
-                          json=jws,
-                          verify=False,
-                          proxies=acme_debug.PROXIES)
+    response = httpx.post(
+        challenge.url,
+        headers=headers,
+        json=jws,
+        verify=False,
+        proxies=acme_debug.PROXIES,
+    )
 
     if response.is_error:
         raise Exception("Error responding to challenge", response.json)
 
     updated_challenge = Challenge(response.json())
-    new_nonce = response.headers['Replay-Nonce']
+    new_nonce = response.headers["Replay-Nonce"]
 
     return updated_challenge, new_nonce

@@ -5,3 +5,6 @@ __pycache__/
 pebble_keys/
 wiki/*
 pytest.ini
+acme_fails.ipynb
+dns_try.py
+makefile

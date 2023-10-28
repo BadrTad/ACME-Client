@@ -1,9 +1,9 @@
-from math import e
+from datetime import datetime
 from typing import Optional, List, Any
 from acme_types import URL, Json
 
 
-class Orders:
+class Order:
     def __init__(self, json: Json, order_url: str) -> None:
         self.expires: str = json.get("expires")
         self.status: str = json.get("status")
@@ -13,7 +13,21 @@ class Orders:
         ]
         self.authorizations: list[URL] = json.get("authorizations")
         self.finalize: URL = json.get("finalize")
+        self.certificate: URL = json.get("certificate")
         self.order_url: URL = order_url
+
+    def add_retry_after(self, retry_after: str) -> None:
+        assert self.status == "processing"
+        if retry_after.isdigit():
+            self.retry_after = int(retry_after)
+            return
+        try:
+            retry_time = datetime.strptime(retry_after, "%a, %d %b %Y %H:%M:%S %Z")
+            time_elapsed = (retry_time - datetime.now()).total_seconds()
+            self.retry_after = time_elapsed if time_elapsed > 0 else 0
+        except ValueError:
+            print("Retry-After header format is not recognize")
+            self.retry_after = 0
 
     def __repr__(self) -> str:
         return f"""
@@ -23,6 +37,7 @@ class Orders:
             identifiers: {self.identifiers}
             authorizations: {self.authorizations}
             finalize: {self.finalize}
+            certificate: {self.certificate}
         """
 
 

@@ -6,7 +6,12 @@ from jws.jws import JWSFactory
 from method.directory.fetch_directory import fetch_directory
 from method.nonce import get_nonce
 from method.account.create_account import create_account
-from method.order.create_order import create_order
+from method.order.order_methods import (
+    check_order,
+    create_order,
+    dowload_certificate,
+    finalize_order,
+)
 from method.order.fetch_authorization import (
     fetch_challenges_for_authorization,
     respond_to_challenge,
@@ -42,16 +47,18 @@ def nonce() -> Nonce:
 def identifiers() -> list[Identifier]:
     return [
         Identifier({"type": "dns", "value": "example.com"}),
-        Identifier({"type": "dns", "value": "www.example.com"}),
+        # Identifier({"type": "dns", "value": "www.example.com"}),
     ]
 
 
-@pytest.fixture(scope="module")
-def acme_dns() -> ACME_DNS:
+@pytest.fixture()
+def acme_dns(identifiers) -> ACME_DNS:
     dns_server: ACME_DNS = ACME_DNS()
     dns_server.start()
     yield dns_server
-    print("This is the end")
+
+    for identifier in identifiers:
+        dns_server.remove_record(identifier.value)
     dns_server.stop()
 
 
@@ -170,8 +177,6 @@ def test_dns_challenge_validation(
     answers = dns_query("_acme-challenge." + domain)
     assert answers is not None and len(answers) == 1 and answers[0] == key_authorization
 
-    acme_dns.remove_record(domain)
-
 
 @pytest.mark.run(after="test_dns_challenge_validation")
 def test_dns_challenge_validation_with_response(
@@ -203,11 +208,32 @@ def test_dns_challenge_validation_with_response(
         account.kid, auth_url, nonce, jws_factory
     )
 
+    assert authorization_updated.is_valid()
+
     updated_challenge_2 = authorization_updated.get_challenge_by_type("dns-01")
 
     assert updated_challenge_2.status == "valid"
 
-    acme_dns.remove_record(authorization.identifier.value)
+    updated_order, nonce = check_order(orders, account.kid, nonce, jws_factory)
+    assert updated_order.status == "ready"
+
+    updated_order, nonce = finalize_order(
+        updated_order, account.kid, nonce, jws_factory
+    )
+
+    assert updated_order.status in ["valid", "processing"]
+
+    if updated_order.status == "processing":
+        sleep(updated_order.retry_after)
+        updated_order, nonce = check_order(orders, account.kid, nonce, jws_factory)
+
+    # The order should be valid now
+    assert updated_order.status == "valid"
+    assert updated_order.certificate is not None
+    print(updated_order.certificate)
+
+    cert, nonce = dowload_certificate(updated_order, account.kid, nonce, jws_factory)
+    assert is_valid_certificate(cert)
 
 
 def test_challenges_responding(

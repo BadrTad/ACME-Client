@@ -1,5 +1,5 @@
 from acme_types import URL, Json
-from method.acme_objects import Account, Authorization, Challenge, Identifier, Orders
+from method.acme_objects import Account, Authorization, Challenge, Identifier, Order
 import json
 
 
@@ -50,7 +50,7 @@ def test_orders_object():
     }
     """
     j = json.loads(data)
-    orders = Orders(j, "order/url")
+    orders = Order(j, "order/url")
     assert orders.status == "pending"
     assert orders.expires == "2023-10-26T12:58:57Z"
     assert orders.identifiers[0].type == "dns"

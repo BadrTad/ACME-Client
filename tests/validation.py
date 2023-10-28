@@ -100,6 +100,16 @@ def are_valid_challenges(challenges: list[Challenge]) -> bool:
     return bool(challenges) and all(map(is_valid_challenge, challenges))
 
 
+def is_valid_certificate(certificate: str) -> bool:
+    return bool(certificate) and bool(
+        re.match(
+            r"^-----BEGIN CERTIFICATE-----.*-----END CERTIFICATE-----$",
+            certificate,
+            re.DOTALL,
+        )
+    )
+
+
 import dns.resolver
 
 

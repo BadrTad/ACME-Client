@@ -46,8 +46,9 @@ def nonce() -> Nonce:
 @pytest.fixture()
 def identifiers() -> list[Identifier]:
     return [
-        Identifier({"type": "dns", "value": "example.com"}),
-        # Identifier({"type": "dns", "value": "www.example.com"}),
+        Identifier({"type": "dns", "value": "syssec.ethz.ch"}),
+        Identifier({"type": "dns", "value": "netsec.ethz.ch"}),
+        Identifier({"type": "dns", "value": "*.epfl.ch"}),
     ]
 
 
@@ -57,6 +58,7 @@ def acme_dns(identifiers) -> ACME_DNS:
     dns_server.start()
     yield dns_server
 
+    # Remove all the added records from TOML
     for identifier in identifiers:
         dns_server.remove_record(identifier.value)
     dns_server.stop()
@@ -110,7 +112,7 @@ def test_order_creation(
         orders, new_nonce = create_order(
             URL_NEW_ORDER_RESOURSE, account.kid, nonce, identifiers, jws_factory
         )
-        assert orders.status == "pending"
+        assert orders.is_still_pending()
         assert are_valid_identifiers(identifiers, orders.identifiers)
         assert is_valid_finalize(orders.finalize)
         assert are_valid_authorizations(orders.authorizations)
@@ -138,7 +140,7 @@ def test_challenges_for_authorization(
         authorization, new_nonce = fetch_challenges_for_authorization(
             account.kid, auth_url, nonce, jws_factory
         )
-        assert authorization.status == "pending"
+        assert authorization.is_still_pending()
         assert authorization.identifier in orders.identifiers
         assert (
             authorization.challenges is not None and len(authorization.challenges) > 0
@@ -146,7 +148,6 @@ def test_challenges_for_authorization(
         assert are_valid_challenges(authorization.challenges)
         assert is_valid_expires(authorization.expires)
         assert is_valid_nonce(nonce)
-        assert authorization.wildcard is None
         return new_nonce
 
     for auth_url in orders.authorizations:
@@ -173,7 +174,7 @@ def test_dns_challenge_validation(
     domain = authorization.identifier.value
 
     assert challenge is not None
-    assert challenge.status == "pending"
+    assert challenge.is_still_pending()
 
     key_authorization = solve_dns_challenge(
         authorization.identifier, challenge, jws_factory.jwk, acme_dns
@@ -195,47 +196,48 @@ def test_dns_challenge_validation_with_response(
         URL_NEW_ORDER_RESOURSE, account.kid, nonce, identifiers, jws_factory
     )
 
-    auth_url = orders.authorizations[0]
-    authorization, nonce = fetch_challenges_for_authorization(
-        account.kid, auth_url, nonce, jws_factory
-    )
-    challenge = authorization.get_challenge_by_type("dns-01")
+    for auth_url in orders.authorizations:
+        # auth_url = orders.authorizations[0]
+        authorization, nonce = fetch_challenges_for_authorization(
+            account.kid, auth_url, nonce, jws_factory
+        )
+        challenge = authorization.get_challenge_by_type("dns-01")
 
-    key_authorization = solve_dns_challenge(
-        authorization.identifier, challenge, jws_factory.jwk, acme_dns
-    )
+        key_authorization = solve_dns_challenge(
+            authorization.identifier, challenge, jws_factory.jwk, acme_dns
+        )
 
-    updated_challenge, nonce = respond_to_challenge(
-        challenge, account.kid, nonce, jws_factory
-    )
+        updated_challenge, nonce = respond_to_challenge(
+            challenge, account.kid, nonce, jws_factory
+        )
 
-    authorization_updated, nonce = fetch_challenges_for_authorization(
-        account.kid, auth_url, nonce, jws_factory
-    )
+        authorization_updated, nonce = fetch_challenges_for_authorization(
+            account.kid, auth_url, nonce, jws_factory
+        )
 
-    assert authorization_updated.is_valid()
+        assert authorization_updated.is_valid()
 
-    updated_challenge_2 = authorization_updated.get_challenge_by_type("dns-01")
+        updated_challenge = authorization_updated.get_challenge_by_type("dns-01")
 
-    assert updated_challenge_2.status == "valid"
+        assert updated_challenge.is_valid()
 
+    # After all the challenges are solved, the order should be ready
     updated_order, nonce = check_order(orders, account.kid, nonce, jws_factory)
-    assert updated_order.status == "ready"
+    assert updated_order.is_ready()
 
     updated_order, nonce = finalize_order(
         updated_order, account.kid, nonce, jws_factory
     )
 
-    assert updated_order.status in ["valid", "processing"]
+    assert updated_order.is_valid() or updated_order.is_still_processing()
 
-    if updated_order.status == "processing":
+    if updated_order.is_still_processing():
         sleep(updated_order.retry_after)
         updated_order, nonce = check_order(orders, account.kid, nonce, jws_factory)
 
     # The order should be valid now
-    assert updated_order.status == "valid"
+    assert updated_order.is_valid()
     assert updated_order.certificate is not None
-    print(updated_order.certificate)
 
     cert, nonce = dowload_certificate(updated_order, account.kid, nonce, jws_factory)
     assert is_valid_certificate(cert)
@@ -250,20 +252,20 @@ def test_challenges_responding(
         URL_NEW_ORDER_RESOURSE, account.kid, nonce, identifiers, jws_factory
     )
 
-    auth_url = orders.authorizations[0]
-    authorization, nonce = fetch_challenges_for_authorization(
-        account.kid, auth_url, nonce, jws_factory
-    )
-    challenge = authorization.get_challenge_by_type("http-01")
+    for auth_url in orders.authorizations:
+        authorization, nonce = fetch_challenges_for_authorization(
+            account.kid, auth_url, nonce, jws_factory
+        )
+        challenge = authorization.get_challenge_by_type("http-01")
 
-    assert challenge is not None
-    assert challenge.status == "pending"
+        assert challenge is not None
+        assert challenge.is_still_pending()
 
-    updated_challenge, nonce = respond_to_challenge(
-        challenge, account.kid, nonce, jws_factory
-    )
+        updated_challenge, nonce = respond_to_challenge(
+            challenge, account.kid, nonce, jws_factory
+        )
 
-    assert updated_challenge.status == "processing"
-    assert updated_challenge.type == challenge.type
-    assert updated_challenge.url == challenge.url
-    assert updated_challenge.token == challenge.token
+        assert updated_challenge.is_still_processing()
+        assert updated_challenge.type == challenge.type
+        assert updated_challenge.url == challenge.url
+        assert updated_challenge.token == challenge.token

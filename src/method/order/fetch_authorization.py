@@ -1,7 +1,7 @@
 import httpx
 import hashlib
 import url64
-from acme_http import ACME_DB
+from acme_http import ACME_HTTP
 from jws.jwk import JWKey
 
 from jws.jws import JWSFactory
@@ -90,14 +90,14 @@ def solve_dns_challenge(
 
 
 def solve_http_challenge(
-    identifier: Identifier, challenge: Challenge, jwk: JWKey, acme_db: ACME_DB
+    identifier: Identifier, challenge: Challenge, jwk: JWKey, acme_http: ACME_HTTP
 ) -> KeyAuthorizaton:
     token = challenge.token
     thumbprint = jwk.thumbprint()
 
     key_authorization = get_key_authorization_from(token, thumbprint, hashed=False)
 
-    acme_db.add(token, key_authorization)
+    acme_http.serve_key_authorization(token, key_authorization)
 
     return key_authorization
 

@@ -1,7 +1,7 @@
 import pytest
 
 from time import sleep
-from acme_http import run_acme_http, ACME_DB
+from acme_http import ACME_HTTP
 
 from jws.jws import JWSFactory
 
@@ -69,12 +69,11 @@ def acme_dns(identifiers) -> ACME_DNS:
 
 
 @pytest.fixture()
-def acme_db(acme_dns: ACME_DNS):
-    from acme_http import acme_db
-
-    run_acme_http("127.0.0.1", 5002)
-    yield acme_db
-    acme_db.close()
+def acme_http(acme_dns: ACME_DNS):
+    acme_http = ACME_HTTP("127.0.0.1", 5002)
+    acme_http.run()
+    yield acme_http
+    acme_http.stop()
 
 
 @pytest.mark.run(order=1)
@@ -286,7 +285,7 @@ def test_challenges_responding(
 
 @pytest.mark.run(order=3)
 def test_http_challenge_validation_with_response(
-    acme_db: ACME_DB,
+    acme_http: ACME_HTTP,
     identifiers: list[Identifier],
     nonce: Nonce,
     jws_factory: JWSFactory,
@@ -304,7 +303,7 @@ def test_http_challenge_validation_with_response(
         challenge = authorization.get_challenge_by_type("http-01")
 
         key_authorization = solve_http_challenge(
-            authorization.identifier, challenge, jws_factory.jwk, acme_db
+            authorization.identifier, challenge, jws_factory.jwk, acme_http
         )
 
         updated_challenge, nonce = respond_to_challenge(
@@ -321,7 +320,7 @@ def test_http_challenge_validation_with_response(
 
         assert updated_challenge.is_valid()
 
-        acme_db.remove(challenge.token)
+        acme_http.remove_key_authorization(updated_challenge.token)
 
     # After all the challenges are solved, the order should be ready
     updated_order, nonce = check_order(orders, account.kid, nonce, jws_factory)

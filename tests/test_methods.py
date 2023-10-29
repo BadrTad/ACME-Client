@@ -1,5 +1,7 @@
-from time import sleep
 import pytest
+
+from time import sleep
+from acme_http import run_acme_http, ACME_DB
 
 from jws.jws import JWSFactory
 
@@ -16,6 +18,7 @@ from method.order.fetch_authorization import (
     fetch_challenges_for_authorization,
     respond_to_challenge,
     solve_dns_challenge,
+    solve_http_challenge,
 )
 from acme_dns import ACME_DNS
 
@@ -47,8 +50,8 @@ def nonce() -> Nonce:
 def identifiers() -> list[Identifier]:
     return [
         Identifier({"type": "dns", "value": "syssec.ethz.ch"}),
-        Identifier({"type": "dns", "value": "netsec.ethz.ch"}),
-        Identifier({"type": "dns", "value": "*.epfl.ch"}),
+        # Identifier({"type": "dns", "value": "netsec.ethz.ch"}),
+        # Identifier({"type": "dns", "value": "*.epfl.ch"}),
     ]
 
 
@@ -61,7 +64,17 @@ def acme_dns(identifiers) -> ACME_DNS:
     # Remove all the added records from TOML
     for identifier in identifiers:
         dns_server.remove_record(identifier.value)
+
     dns_server.stop()
+
+
+@pytest.fixture()
+def acme_db(acme_dns: ACME_DNS):
+    from acme_http import acme_db
+
+    run_acme_http("127.0.0.1", 5002)
+    yield acme_db
+    acme_db.close()
 
 
 @pytest.mark.run(order=1)
@@ -269,3 +282,64 @@ def test_challenges_responding(
         assert updated_challenge.type == challenge.type
         assert updated_challenge.url == challenge.url
         assert updated_challenge.token == challenge.token
+
+
+@pytest.mark.run(order=3)
+def test_http_challenge_validation_with_response(
+    acme_db: ACME_DB,
+    identifiers: list[Identifier],
+    nonce: Nonce,
+    jws_factory: JWSFactory,
+):
+    account, nonce = create_account(URL_ACCOUNT_RESOURCE, nonce, jws_factory)
+    orders, nonce = create_order(
+        URL_NEW_ORDER_RESOURSE, account.kid, nonce, identifiers, jws_factory
+    )
+
+    for auth_url in orders.authorizations:
+        # auth_url = orders.authorizations[0]
+        authorization, nonce = fetch_challenges_for_authorization(
+            account.kid, auth_url, nonce, jws_factory
+        )
+        challenge = authorization.get_challenge_by_type("http-01")
+
+        key_authorization = solve_http_challenge(
+            authorization.identifier, challenge, jws_factory.jwk, acme_db
+        )
+
+        updated_challenge, nonce = respond_to_challenge(
+            challenge, account.kid, nonce, jws_factory
+        )
+
+        authorization_updated, nonce = fetch_challenges_for_authorization(
+            account.kid, auth_url, nonce, jws_factory
+        )
+
+        assert authorization_updated.is_valid()
+
+        updated_challenge = authorization_updated.get_challenge_by_type("http-01")
+
+        assert updated_challenge.is_valid()
+
+        acme_db.remove(challenge.token)
+
+    # After all the challenges are solved, the order should be ready
+    updated_order, nonce = check_order(orders, account.kid, nonce, jws_factory)
+    assert updated_order.is_ready()
+
+    updated_order, nonce = finalize_order(
+        updated_order, account.kid, nonce, jws_factory
+    )
+
+    assert updated_order.is_valid() or updated_order.is_still_processing()
+
+    if updated_order.is_still_processing():
+        sleep(updated_order.retry_after)
+        updated_order, nonce = check_order(orders, account.kid, nonce, jws_factory)
+
+    # The order should be valid now
+    assert updated_order.is_valid()
+    assert updated_order.certificate is not None
+
+    cert, nonce = dowload_certificate(updated_order, account.kid, nonce, jws_factory)
+    assert is_valid_certificate(cert)

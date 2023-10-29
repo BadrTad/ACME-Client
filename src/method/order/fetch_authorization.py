@@ -1,6 +1,7 @@
 import httpx
 import hashlib
 import url64
+from acme_http import ACME_DB
 from jws.jwk import JWKey
 
 from jws.jws import JWSFactory
@@ -56,10 +57,13 @@ def fetch_challenges_for_authorization(
     return authorization, new_nonce
 
 
-def hashed_key_authorization_from(token: str, thumbprint: str) -> str:
+def get_key_authorization_from(token: str, thumbprint: str, hashed=True) -> str:
     key_authorization = f"{token}.{thumbprint}"
-    hashed_key = hashlib.sha256(key_authorization.encode("utf-8")).digest()
-    return url64.encode(hashed_key)
+    if hashed:
+        hashed_key = hashlib.sha256(key_authorization.encode("utf-8")).digest()
+        return url64.encode(hashed_key)
+    else:
+        return key_authorization
 
 
 def solve_dns_challenge(
@@ -77,13 +81,23 @@ def solve_dns_challenge(
     token = challenge.token
     thumbprint = jwk.thumbprint()
 
-    key_authorization = hashed_key_authorization_from(token, thumbprint)
+    key_authorization = get_key_authorization_from(token, thumbprint)
     domain = identifier.value
 
     acme_dns.serve_record(domain, "TXT", key_authorization)
-    print(
-        f"Added record for {domain} with key authorization {key_authorization} to ACME DNS server"
-    )
+
+    return key_authorization
+
+
+def solve_http_challenge(
+    identifier: Identifier, challenge: Challenge, jwk: JWKey, acme_db: ACME_DB
+) -> KeyAuthorizaton:
+    token = challenge.token
+    thumbprint = jwk.thumbprint()
+
+    key_authorization = get_key_authorization_from(token, thumbprint, hashed=False)
+
+    acme_db.add(token, key_authorization)
 
     return key_authorization
 

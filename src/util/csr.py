@@ -32,7 +32,6 @@ def create_csr(
         for identifier in identifiers
     ]
     # Add subject name
-
     csr_builder = csr_builder.subject_name(x509.Name(names))
     # Create a SAN extension with "example.com" as a DNS name
     san_extension = x509.SubjectAlternativeName(

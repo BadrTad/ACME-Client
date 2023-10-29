@@ -16,6 +16,18 @@ class Order:
         self.certificate: URL = json.get("certificate")
         self.order_url: URL = order_url
 
+    def is_ready(self) -> bool:
+        return self.status == "ready"
+
+    def is_still_processing(self) -> bool:
+        return self.status == "processing"
+
+    def is_still_pending(self) -> bool:
+        return self.status == "pending"
+
+    def is_valid(self) -> bool:
+        return self.status == "valid"
+
     def add_retry_after(self, retry_after: str) -> None:
         assert self.status == "processing"
         if retry_after.isdigit():
@@ -96,6 +108,15 @@ class Challenge:
 
     def is_dns_01(self) -> bool:
         return self.type == "dns-01"
+
+    def is_valid(self) -> bool:
+        return self.status == "valid"
+
+    def is_still_processing(self) -> bool:
+        return self.status == "processing"
+
+    def is_still_pending(self) -> bool:
+        return self.status == "pending"
 
     def __repr__(self) -> str:
         return f"""

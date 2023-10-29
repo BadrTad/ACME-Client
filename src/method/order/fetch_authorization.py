@@ -90,7 +90,7 @@ def solve_dns_challenge(
 
 def respond_to_challenge(
     challenge: Challenge, account_id: URL, nonce: Nonce, jws_factory: JWSFactory
-) -> Tuple[bool, Nonce]:
+) -> Tuple[Challenge, Nonce]:
     """Respond to the challenge.
 
     Args:

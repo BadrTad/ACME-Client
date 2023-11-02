@@ -10,19 +10,18 @@ import url64
 from method.acme_objects import Identifier
 
 
+def get_private_key():
+    # TODO: SAVE PRIVATE KEYS TO BE USED LATER BY HTTPS SERVER OR LOAD THEM FROM A FILE
+
+    return rsa.generate_private_key(
+        public_exponent=65537, key_size=2048, backend=default_backend()
+    )
+
+
 def create_csr(
     identifiers: list[Identifier], private_key_path: str = "debug/sk.pem"
 ) -> str:
-    #     # Generate a private key
-    # with open(private_key_path, "rb") as key_file:
-    #     private_key_bytes = key_file.read()
-
-    # private_key = serialization.load_pem_private_key(private_key_bytes, password=None, backend=default_backend())
-    #
-    # TODO: SAVE PRIVATE KEYS TO BE USED LATER BY HTTPS SERVER OR LOAD THEM FROM A FILE
-    private_key = rsa.generate_private_key(
-        public_exponent=65537, key_size=2048, backend=default_backend()
-    )
+    private_key = get_private_key()
 
     # Create a CSR builder
     csr_builder = x509.CertificateSigningRequestBuilder()
@@ -53,11 +52,7 @@ def create_csr(
     return url64.encode(csr_der)
 
 
-if __name__ == "__main__":
-    identifiers = [
-        Identifier({"value": "www.example.com", "type": "dns"}),
-        Identifier({"value": "www.another-example.com", "type": "dns"}),
-        Identifier({"value": "example.com", "type": "dns"}),
-    ]
-    csr = create_csr(identifiers, "debug/sk.pem")
-    print(csr)
+def get_der_cert_for_pem(pem_cert: bytes) -> bytes:
+    """Returns the DER certificate from a PEM certificate."""
+    cert = x509.load_pem_x509_certificate(pem_cert, default_backend())
+    return cert.public_bytes(encoding=serialization.Encoding.DER)

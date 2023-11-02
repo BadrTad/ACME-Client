@@ -5,14 +5,17 @@ from acme_http import ACME_HTTP
 
 from jws.jws import JWSFactory
 
-from method.directory.fetch_directory import fetch_directory
 from method.nonce import get_nonce
+from method.directory.fetch_directory import fetch_directory
 from method.account.create_account import create_account
 from method.order.order_methods import (
     check_order,
     create_order,
-    dowload_certificate,
     finalize_order,
+)
+from method.certificate import (
+    dowload_certificate,
+    revoke_certificate,
 )
 from method.order.fetch_authorization import (
     fetch_challenges_for_authorization,
@@ -23,11 +26,13 @@ from method.order.fetch_authorization import (
 from acme_dns import ACME_DNS
 
 from acme_types import URL, Nonce
+
 from acme_debug import (
     URL_ACME_DIR,
     URL_ACCOUNT_RESOURCE,
     URL_NEW_ORDER_RESOURSE,
     URL_NONCE_RESOURCE,
+    URL_REVOKE_CERTIFICATE_RESOURCE,
     get_debug_jws_factory,
 )
 from validation import *
@@ -51,7 +56,7 @@ def identifiers() -> list[Identifier]:
     return [
         Identifier({"type": "dns", "value": "syssec.ethz.ch"}),
         # Identifier({"type": "dns", "value": "netsec.ethz.ch"}),
-        # Identifier({"type": "dns", "value": "*.epfl.ch"}),
+        # Identifier({"type": "dns", "value": "www.epfl.ch"}),
     ]
 
 
@@ -300,6 +305,7 @@ def test_http_challenge_validation_with_response(
         authorization, nonce = fetch_challenges_for_authorization(
             account.kid, auth_url, nonce, jws_factory
         )
+        # TODO: Cannot verify an wildcard domain with http challenge only dns
         challenge = authorization.get_challenge_by_type("http-01")
 
         key_authorization = solve_http_challenge(
@@ -342,3 +348,9 @@ def test_http_challenge_validation_with_response(
 
     cert, nonce = dowload_certificate(updated_order, account.kid, nonce, jws_factory)
     assert is_valid_certificate(cert)
+
+    revoked, nonce = revoke_certificate(
+        cert, URL_REVOKE_CERTIFICATE_RESOURCE, account.kid, nonce, jws_factory
+    )
+
+    assert revoked

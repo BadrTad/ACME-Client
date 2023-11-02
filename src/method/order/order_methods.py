@@ -1,12 +1,11 @@
-from typing import Optional
 import httpx
 import acme_debug
 
 from jws.jws import JWSFactory
 
-from acme_types import URL, Nonce, Dict, Tuple
+from acme_types import URL, Nonce, Tuple
 from method.acme_objects import Identifier, Order
-from util.csr import create_csr
+from util.certificate import create_csr
 
 
 def create_order(
@@ -105,41 +104,3 @@ def finalize_order(
         updated_order.add_retry_after(retry_after)
 
     return updated_order, new_nonce
-
-
-def dowload_certificate(
-    order: Order,
-    kid: str,
-    nonce: str,
-    jws_factory: JWSFactory,
-    save_file: Optional[str] = "debug/acmecert.PEM",
-) -> Tuple[bytes, Nonce]:
-    """Downloads the certificate from the order."""
-    jws_header_params = {"url": order.certificate, "kid": kid, "nonce": nonce}
-    jws_payload = ""
-    jws = jws_factory.build_JWS_with_kid(jws_header_params, jws_payload)
-
-    headers = {
-        "Content-Type": "application/jose+json",
-        "Accept": "application/pem-certificate-chain",
-    }
-
-    response = httpx.post(
-        order.certificate,
-        headers=headers,
-        json=jws,
-        verify=False,
-        proxies=acme_debug.PROXIES,
-    )
-
-    cert_bytes = response.content
-    new_nonce = response.headers["Replay-Nonce"]
-
-    if response.is_error:
-        raise Exception("Error downloading certificate", response.json())
-
-    if save_file is not None:
-        with open(save_file, "wb") as f:
-            f.write(cert_bytes)
-
-    return cert_bytes.decode("utf-8"), new_nonce

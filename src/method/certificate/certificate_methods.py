@@ -2,7 +2,6 @@ import httpx
 import url64
 import os
 
-import acme_debug
 from acme_types import URL, Optional, Tuple, Nonce
 
 from jws.jws import JWSFactory
@@ -12,6 +11,7 @@ from util.certificate import get_der_cert_for_pem
 
 
 def dowload_certificate(
+    client: httpx.Client,
     order: Order,
     kid: str,
     nonce: str,
@@ -28,13 +28,7 @@ def dowload_certificate(
         "Accept": "application/pem-certificate-chain",
     }
 
-    response = httpx.post(
-        order.certificate,
-        headers=headers,
-        json=jws,
-        verify=False,
-        proxies=acme_debug.PROXIES,
-    )
+    response = client.post(order.certificate, headers=headers, json=jws)
 
     cert_bytes = response.content
     new_nonce = response.headers["Replay-Nonce"]
@@ -50,6 +44,7 @@ def dowload_certificate(
 
 
 def revoke_certificate(
+    client: httpx.Client,
     pem_cert: str | bytes,
     revocation_url: URL,
     kid: str,
@@ -80,13 +75,7 @@ def revoke_certificate(
 
     headers = {"Content-Type": "application/jose+json"}
 
-    response = httpx.post(
-        revocation_url,
-        headers=headers,
-        json=jws,
-        verify=False,
-        proxies=acme_debug.PROXIES,
-    )
+    response = client.post(revocation_url, headers=headers, json=jws)
 
     new_nonce = response.headers["Replay-Nonce"]
 

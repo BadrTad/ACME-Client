@@ -9,11 +9,14 @@ from method.acme_objects import Authorization, Challenge, Identifier
 from acme_types import URL, KeyAuthorizaton, Nonce, Tuple
 
 from acme_dns import ACME_DNS
-import acme_debug
 
 
-def fetch_challenges_for_authorization(
-    account_id: str, authorization_url: URL, nonce: Nonce, jws_factory: JWSFactory
+def fetch_authorization(
+    client: httpx.Client,
+    account_id: str,
+    authorization_url: URL,
+    nonce: Nonce,
+    jws_factory: JWSFactory,
 ) -> Tuple[Authorization, Nonce]:
     """Fetch Authorization object containing the challenges for the given authorization url.
 
@@ -40,12 +43,10 @@ def fetch_challenges_for_authorization(
         "Accept": "application/json",
     }
 
-    response = httpx.post(
+    response = client.post(
         authorization_url,
         headers=headers,
         json=jws,
-        verify=False,
-        proxies=acme_debug.PROXIES,
     )
 
     if response.is_error:
@@ -103,7 +104,11 @@ def solve_http_challenge(
 
 
 def respond_to_challenge(
-    challenge: Challenge, account_id: URL, nonce: Nonce, jws_factory: JWSFactory
+    client: httpx.Client,
+    challenge: Challenge,
+    account_id: URL,
+    nonce: Nonce,
+    jws_factory: JWSFactory,
 ) -> Tuple[Challenge, Nonce]:
     """Respond to the challenge.
 
@@ -129,12 +134,10 @@ def respond_to_challenge(
         "Accept": "application/json",
     }
 
-    response = httpx.post(
+    response = client.post(
         challenge.url,
         headers=headers,
         json=jws,
-        verify=False,
-        proxies=acme_debug.PROXIES,
     )
 
     if response.is_error:

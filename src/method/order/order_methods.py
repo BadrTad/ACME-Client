@@ -1,5 +1,4 @@
 import httpx
-import acme_debug
 
 from jws.jws import JWSFactory
 
@@ -9,6 +8,7 @@ from util.certificate import create_csr
 
 
 def create_order(
+    client: httpx.Client,
     urlOrder: URL,
     kid: str,
     nonce: Nonce,
@@ -25,9 +25,7 @@ def create_order(
         "Accept": "application/json",
     }
 
-    response = httpx.post(
-        urlOrder, headers=headers, json=jws, verify=False, proxies=acme_debug.PROXIES
-    )
+    response = client.post(urlOrder, headers=headers, json=jws)
 
     if response.is_error:
         raise Exception("Error creating order", response.json)
@@ -40,7 +38,7 @@ def create_order(
 
 
 def check_order(
-    order: Order, kid: str, nonce: Nonce, factory: JWSFactory
+    client: httpx.Client, order: Order, kid: str, nonce: Nonce, factory: JWSFactory
 ) -> Tuple[Order, Nonce]:
     """Checks the status of the order."""
     jws_header_params = {"url": order.order_url, "nonce": nonce, "kid": kid}
@@ -52,12 +50,10 @@ def check_order(
         "Accept": "application/json",
     }
 
-    response = httpx.post(
+    response = client.post(
         order.order_url,
         headers=headers,
         json=jws,
-        verify=False,
-        proxies=acme_debug.PROXIES,
     )
 
     if response.is_error:
@@ -69,7 +65,7 @@ def check_order(
 
 
 def finalize_order(
-    order: Order, kid: str, nonce: Nonce, jwk_factory: JWSFactory
+    client: httpx.Client, order: Order, kid: str, nonce: Nonce, jwk_factory: JWSFactory
 ) -> Tuple[Order, Nonce]:
     jws_header_params = {"url": order.finalize, "nonce": nonce, "kid": kid}
 
@@ -83,13 +79,7 @@ def finalize_order(
         "Accept": "application/json",
     }
 
-    response = httpx.post(
-        order.finalize,
-        headers=headers,
-        json=jws,
-        verify=False,
-        proxies=acme_debug.PROXIES,
-    )
+    response = client.post(order.finalize, headers=headers, json=jws)
     if response.is_error:
         raise Exception("Error finalizing order", response.json())
 
@@ -99,7 +89,7 @@ def finalize_order(
 
     # If the order is still processing, we need to wait for the Retry-After time
     # This information gets added to the order object
-    if updated_order.status == "processing":
+    if updated_order.is_still_processing():
         retry_after = response.headers["Retry-After"]
         updated_order.add_retry_after(retry_after)
 

@@ -1,16 +1,14 @@
 import httpx
 from acme_types import Nonce, URL
 
-import acme_debug
 
-
-def get_nonce(urlNonce: URL) -> Nonce:
+def get_nonce(client: httpx.Client, urlNonce: URL) -> Nonce:
     """Gets a nonce from the ACME server
 
     Returns:
         Nonce: Nonce from the ACME server
     """
-    response = httpx.head(urlNonce, verify=False, proxies=acme_debug.PROXIES)
+    response = client.head(urlNonce)
     if response.is_error:
         raise Exception("Error getting nonce: " + response.text)
 

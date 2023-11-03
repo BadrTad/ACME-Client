@@ -1,5 +1,4 @@
 import httpx
-import acme_debug
 
 from method.acme_objects import Account
 from acme_types import URL, Json, Nonce, Tuple
@@ -7,7 +6,7 @@ from jws.jws import JWSFactory
 
 
 def create_account(
-    newAccountEndpoint: URL, nonce: Nonce, factory: JWSFactory
+    client: httpx.Client, newAccountEndpoint: URL, nonce: Nonce, factory: JWSFactory
 ) -> Tuple[Account, Nonce]:
     """Creates a new account by sending a POST request to the ACME server
 
@@ -28,11 +27,13 @@ def create_account(
     }
 
     jws = format_jws(payload, newAccountEndpoint, nonce, factory)
-    account, new_nonce = send_post_request_for_account(newAccountEndpoint, jws)
+    account, new_nonce = send_post_request_for_account(client, newAccountEndpoint, jws)
     return account, new_nonce
 
 
-def send_post_request_for_account(url: URL, jws: Json) -> Tuple[Account, Nonce]:
+def send_post_request_for_account(
+    client: httpx.Client, url: URL, jws: Json
+) -> Tuple[Account, Nonce]:
     """Formats a POST request to the ACME server
 
     Returns:
@@ -44,8 +45,10 @@ def send_post_request_for_account(url: URL, jws: Json) -> Tuple[Account, Nonce]:
         "Content-Type": "application/jose+json",
         "Accept": "application/json",
     }
-    response = httpx.post(
-        url, headers=headers, json=jws, verify=False, proxies=acme_debug.PROXIES
+    response = client.post(
+        url,
+        headers=headers,
+        json=jws,
     )
     if response.is_error:
         raise Exception("Error creating account", response.json())

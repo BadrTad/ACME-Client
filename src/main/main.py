@@ -9,9 +9,7 @@ HTTP_CHALLENGE_TYPE = "http01"
 def acquire_certificate(
     challenge_type: str, dir_url: URL, record: str, domains: list[str]
 ):
-    print(
-        f"acquire_certificate: {challenge_type}, {dir_url}, {record}, {domains}"
-    )
+    print(f"acquire_certificate: {challenge_type}, {dir_url}, {record}, {domains}")
 
     return "certificate"
 
@@ -19,10 +17,14 @@ def acquire_certificate(
 def revoke_certificate(certificate: str):
     print("revoke_certificate", certificate)
 
+
 def parse_cli_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "challenge_type", choices=[DNS_CHALLENGE_TYPE, HTTP_CHALLENGE_TYPE], type=str, help="Name of the user"
+        "challenge_type",
+        choices=[DNS_CHALLENGE_TYPE, HTTP_CHALLENGE_TYPE],
+        type=str,
+        help="Name of the user",
     )
     parser.add_argument(
         "--dir",

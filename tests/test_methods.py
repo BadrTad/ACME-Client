@@ -1,12 +1,13 @@
+import multiprocessing
 import pytest
 import httpx
-import subprocess, psutil
+import psutil, os
 
 from time import sleep
+import acme_config
 from acme_http import ACME_HTTP
 
 from jws.jws import JWSFactory
-
 from method.nonce import get_nonce
 from method.directory.fetch_directory import fetch_directory
 from method.account.create_account import create_account
@@ -43,11 +44,14 @@ from validation import *
 
 @pytest.fixture(scope="function", autouse=True)
 def pebble_server_setup_teardown():
-    cmd = "PEBBLE_WFE_NONCEREJECT=0 pebble -dnsserver 127.0.0.1:5053"
+    def run():
+        os.chdir("/usr/local/pebble")
+        cmd = ["PEBBLE_WFE_NONCEREJECT=0 pebble", "-dnsserver", "127.0.0.1:5053"]
+        os.system(" ".join(cmd))
 
-    process = subprocess.Popen(cmd, cwd="/usr/local/pebble", shell=True)
+    process = multiprocessing.Process(target=run)
+    process.start()
     yield  # This allows the test functions to run
-
     for child in psutil.Process(process.pid).children(recursive=True):
         child.kill()
     process.kill()
@@ -99,7 +103,7 @@ def acme_http(acme_dns: ACME_DNS):
 @pytest.fixture(name="client")
 def acme_client():
     client = httpx.Client(http2=True, verify=False, proxies=PROXIES)
-    # client = httpx.Client(http2=True, verify=config.PATH_PEBBLE_CERTIFICATE)
+    # client = httpx.Client(http2=True, verify=acme_config.PATH_PEBBLE_CERTIFICATE)
     yield client
     client.close()
 
